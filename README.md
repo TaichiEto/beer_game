@@ -26,7 +26,7 @@ python beer_game_dqn.py
 ```
 
 ## 使い方
-### 🔹 設定（`config` を変更）
+### 🔹 設定（`config`(スクリプト内に実装) を変更）
 ```python
 config = {
     "time_unit": "week",  # "week", "day", "month"
