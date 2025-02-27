@@ -9,7 +9,7 @@ from collections import deque
 # === 実験設定 ===
 time_units = ["week", "day", "month"]
 goals = ["cost_min", "profit_max", "env_min", "weighted"]
-num_episodes = 500
+num_episodes = 2000
 batch_size = 512
 config = {"gpu": True}  # GPUを使用するか（True: GPU, False: CPU）
 
@@ -164,4 +164,4 @@ for time_unit in time_units:
         plt.xlabel("Episode")
         plt.ylabel("Total Reward")
         plt.title(f"Training Progress of PyTorch DQN in Beer Game ({time_unit} - {goal})")
-        plt.show()
+        plt.savefig(f'training_curve_{time_unit}_{goal}.png')
