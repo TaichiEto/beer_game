@@ -1,4 +1,7 @@
 import numpy as np
+import os
+import datetime
+from pathlib import Path
 import matplotlib.pyplot as plt
 import random
 import torch
@@ -9,12 +12,20 @@ from collections import deque
 # === 実験設定 ===
 time_units = ["week", "day", "month"]
 goals = ["cost_min", "profit_max", "env_min", "weighted"]
-num_episodes = 2000
-batch_size = 512
+num_episodes = 10000
+batch_size = 2048
 config = {"gpu": True}  # GPUを使用するか（True: GPU, False: CPU）
 
 device = torch.device("cuda" if config["gpu"] and torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
+
+# === 出力フォルダ設定 ===
+output_root = Path("output")
+output_root.mkdir(parents=True, exist_ok=True)
+timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+output_dir = output_root / timestamp
+output_dir.mkdir(parents=True, exist_ok=True)
+log_file = output_dir / "training_log.txt"
 
 # === ビールゲームの環境 ===
 class BeerGameEnv:
@@ -36,21 +47,18 @@ class BeerGameEnv:
     def step(self, action):
         self.order = max(0, int(action))
         received = self.order
-
         self.inventory += received - self.demand
         if self.inventory < 0:
             self.backlog += abs(self.inventory)
             self.inventory = 0
         else:
             self.backlog = max(0, self.backlog - self.inventory)
-
         self.demand = max(1, int(self.demand + np.random.randint(-2, 3)))
-
         holding_cost = self.inventory * 0.1
         backlog_cost = self.backlog * 0.5
         profit = max(0, self.demand * 2 - self.order * 1.5)
         env_impact = self.order * 0.2
-
+        
         if config["goal"] == "cost_min":
             reward = - (holding_cost + backlog_cost)
         elif config["goal"] == "profit_max":
@@ -61,7 +69,7 @@ class BeerGameEnv:
             weights = config.get("reward_weights", {"cost_min": 1.0, "profit_max": 0.0, "env_min": 0.0})
             reward = - (weights["cost_min"] * (holding_cost + backlog_cost)) + \
                      (weights["profit_max"] * profit) - (weights["env_min"] * env_impact)
-
+        
         self.step_count += 1
         done = self.step_count >= self.max_steps
         return self.get_state(), reward, done
@@ -112,7 +120,6 @@ class DQNAgent:
     def train(self, batch_size=32):
         if len(self.memory) < batch_size:
             return
-
         batch = random.sample(self.memory, batch_size)
         states, actions, rewards, next_states, dones = zip(*batch)
         
@@ -130,7 +137,7 @@ class DQNAgent:
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
-
+        
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
 
@@ -157,11 +164,14 @@ for time_unit in time_units:
                     break
             if episode % 10 == 0:
                 agent.update_target_network()
-                print(f"[{time_unit} - {goal}] Episode {episode}: Total Reward: {total_reward:.2f}")
+                log_message = f"[{time_unit} - {goal}] Episode {episode}: Total Reward: {total_reward:.2f}"
+            print(log_message)
+            with open(log_file, "a") as f:
+                f.write(log_message + "\n")
             reward_history.append(total_reward)
         
         plt.plot(reward_history)
         plt.xlabel("Episode")
         plt.ylabel("Total Reward")
         plt.title(f"Training Progress of PyTorch DQN in Beer Game ({time_unit} - {goal})")
-        plt.savefig(f'training_curve_{time_unit}_{goal}.png')
+        plt.savefig(output_dir / f'training_curve_{time_unit}_{goal}.png')
