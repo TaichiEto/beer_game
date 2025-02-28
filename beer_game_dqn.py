@@ -6,6 +6,12 @@ import torch.nn as nn
 import torch.optim as optim
 from collections import deque
 
+# === CUDA 設定 ===
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+if torch.cuda.is_available():
+    print("CUDA is available")
+print(f"Using device: {device}")
+
 # === 設定 ===
 config = {
     "time_unit": "week",  # "week", "day", "month" から選択
@@ -63,7 +69,7 @@ class BeerGameEnv:
         done = self.step_count >= self.max_steps
         return self.get_state(), reward, done
 
-# === DQN エージェント（PyTorch） ===
+# === DQN エージェント（CUDA対応） ===
 class DQNAgent:
     def __init__(self, state_size, action_size, lr=0.001, gamma=0.95, epsilon=1.0, epsilon_decay=0.995, epsilon_min=0.05):
         self.state_size = state_size
@@ -80,21 +86,23 @@ class DQNAgent:
             nn.Linear(64, 64),
             nn.ReLU(),
             nn.Linear(64, action_size)
-        )
+        ).to(device)
+        
         self.target_model = nn.Sequential(
             nn.Linear(state_size, 64),
             nn.ReLU(),
             nn.Linear(64, 64),
             nn.ReLU(),
             nn.Linear(64, action_size)
-        )
+        ).to(device)
+        
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
         self.memory = deque(maxlen=2000)
 
     def select_action(self, state):
         if np.random.rand() < self.epsilon:
             return np.random.randint(self.action_size)
-        state = torch.FloatTensor(state).unsqueeze(0)
+        state = torch.FloatTensor(state).unsqueeze(0).to(device)
         with torch.no_grad():
             return torch.argmax(self.model(state)).item()
 
@@ -111,11 +119,11 @@ class DQNAgent:
         batch = random.sample(self.memory, batch_size)
         states, actions, rewards, next_states, dones = zip(*batch)
         
-        states = torch.FloatTensor(states)
-        actions = torch.LongTensor(actions).unsqueeze(1)
-        rewards = torch.FloatTensor(rewards).unsqueeze(1)
-        next_states = torch.FloatTensor(next_states)
-        dones = torch.FloatTensor(dones).unsqueeze(1)
+        states = torch.FloatTensor(states).to(device)
+        actions = torch.LongTensor(actions).unsqueeze(1).to(device)
+        rewards = torch.FloatTensor(rewards).unsqueeze(1).to(device)
+        next_states = torch.FloatTensor(next_states).to(device)
+        dones = torch.FloatTensor(dones).unsqueeze(1).to(device)
         
         q_values = self.model(states).gather(1, actions)
         next_q_values = self.target_model(next_states).max(1, keepdim=True)[0].detach()
@@ -129,7 +137,7 @@ class DQNAgent:
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
 
-# === 学習の実行 ===
+# === 学習の実行（CUDA対応） ===
 env = BeerGameEnv()
 agent = DQNAgent(state_size=4, action_size=10)
 
@@ -157,5 +165,5 @@ for episode in range(num_episodes):
 plt.plot(reward_history)
 plt.xlabel("Episode")
 plt.ylabel("Total Reward")
-plt.title("Training Progress of PyTorch DQN in Beer Game")
+plt.title("Training Progress of CUDA-Powered PyTorch DQN in Beer Game")
 plt.show()
