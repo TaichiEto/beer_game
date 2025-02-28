@@ -1,3 +1,5 @@
+import os
+import datetime
 import numpy as np
 import matplotlib.pyplot as plt
 import random
@@ -8,16 +10,26 @@ from collections import deque
 
 # === CUDA 設定 ===
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-if torch.cuda.is_available():
-    print("CUDA is available")
 print(f"Using device: {device}")
+
+# === 出力ディレクトリ設定 ===
+timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+output_dir = f"output/{timestamp}"
+os.makedirs(output_dir, exist_ok=True)
 
 # === 設定 ===
 config = {
     "time_unit": "week",  # "week", "day", "month" から選択
     "goal": "cost_min",  # "cost_min", "profit_max", "env_min", "weighted"
     "reward_weights": {"cost_min": 1.0, "profit_max": 0.0, "env_min": 0.0},
+    "batch_size": 32,
+    "num_episodes": 500
 }
+
+# 設定をファイルに保存
+with open(os.path.join(output_dir, "option.txt"), "w") as f:
+    for key, value in config.items():
+        f.write(f"{key}: {value}\n")
 
 # === ビールゲームの環境 ===
 class BeerGameEnv:
@@ -140,30 +152,28 @@ class DQNAgent:
 # === 学習の実行（CUDA対応） ===
 env = BeerGameEnv()
 agent = DQNAgent(state_size=4, action_size=10)
-
-num_episodes = 500
-batch_size = 32
 reward_history = []
 
-for episode in range(num_episodes):
-    state = env.reset()
-    total_reward = 0
-    for step in range(env.max_steps):
-        action = agent.select_action(state)
-        next_state, reward, done = env.step(action)
-        agent.store_experience(state, action, reward, next_state, done)
-        agent.train(batch_size)
-        state = next_state
-        total_reward += reward
-        if done:
-            break
-    if episode % 10 == 0:
-        agent.update_target_network()
-        print(f"Episode {episode}: Total Reward: {total_reward:.2f}")
-    reward_history.append(total_reward)
+with open(os.path.join(output_dir, "log.txt"), "w") as log_file:
+    for episode in range(config["num_episodes"]):
+        state = env.reset()
+        total_reward = 0
+        for step in range(env.max_steps):
+            action = agent.select_action(state)
+            next_state, reward, done = env.step(action)
+            agent.store_experience(state, action, reward, next_state, done)
+            agent.train(config["batch_size"])
+            state = next_state
+            total_reward += reward
+            if done:
+                break
+        if episode % 10 == 0:
+            agent.update_target_network()
+            log_file.write(f"Episode {episode}: Total Reward: {total_reward:.2f}\n")
+        reward_history.append(total_reward)
 
 plt.plot(reward_history)
 plt.xlabel("Episode")
 plt.ylabel("Total Reward")
-plt.title("Training Progress of CUDA-Powered PyTorch DQN in Beer Game")
-plt.show()
+plt.title("Training Progress")
+plt.savefig(os.path.join(output_dir, "reward_plot.png"))
