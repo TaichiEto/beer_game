@@ -19,11 +19,11 @@ os.makedirs(output_dir, exist_ok=True)
 
 # === Configuration ===
 config = {
-    "time_unit": "week",  # Choose from "week", "day", "month"
+    "time_unit": "day",  # Choose from "week", "day", "month"
     "goal": "cost_min",   # Choose from "cost_min", "profit_max", "env_min", "weighted"
     "reward_weights": {"cost_min": 1.0, "profit_max": 0.0, "env_min": 0.0},
-    "batch_size": 64,     # Increased batch size
-    "num_episodes": 500,
+    "batch_size": 256,     # Increased batch size
+    "num_episodes": 1000,
     "learning_rate": 0.0005,  # Small learning rate
     "discount_factor": 0.99,  # Higher discount factor to focus on long-term rewards
     "epsilon_start": 1.0,
